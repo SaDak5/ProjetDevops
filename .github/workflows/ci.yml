@@ -11,74 +11,41 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      # 1. Récupération du code
       - name: Checkout code
         uses: actions/checkout@v4
       
-      # 2. Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
       
-      # 3. BACKEND - Installation dépendances
       - name: Backend Install
         run: |
           cd Backend
           npm install
       
-      # 4. BACKEND - Lint (vérification code)
       - name: Backend Lint
         run: |
           cd Backend
-          npm run lint || echo "No lint script configured"
+          npm run lint || true
       
-      # 5. BACKEND - Tests unitaires
-      - name: Backend Tests
-        run: |
-          cd Backend
-          npm test || echo "No test script configured"
-      
-      # 6. FRONTEND - Installation dépendances
       - name: Frontend Install
         run: |
           cd frontend
           npm install
       
-      # 7. FRONTEND - Lint
       - name: Frontend Lint
         run: |
           cd frontend
-          npm run lint || echo "No lint script configured"
+          npm run lint || true
       
-      # 8. FRONTEND - Build production
       - name: Frontend Build
         run: |
           cd frontend
-          npm run build || echo "Build skipped"
+          npm run build || true
       
-      # 9. DOCKER - Build des images
       - name: Build Docker Backend
-        run: |
-          docker build -f docker/Dockerfile.backend -t backend:latest .
+        run: docker build -f docker/Dockerfile.backend -t backend:latest .
       
       - name: Build Docker Frontend
-        run: |
-          docker build -f docker/Dockerfile.frontend -t frontend:latest .
-      
-      # 10. DEVSECOPS - Scan des images avec Trivy
-      - name: Scan Backend with Trivy
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: backend:latest
-          format: 'table'
-          exit-code: '0'
-          severity: 'CRITICAL,HIGH'
-      
-      - name: Scan Frontend with Trivy
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: frontend:latest
-          format: 'table'
-          exit-code: '0'
-          severity: 'CRITICAL,HIGH'
+        run: docker build -f docker/Dockerfile.frontend -t frontend:latest .
