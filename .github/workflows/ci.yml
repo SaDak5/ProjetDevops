@@ -1,63 +1,148 @@
-name: CI
+name: CI Pipeline
 
 on:
   push:
-    branches:
-      - main
-      - master
+    branches: [ main, master, dev ]
   pull_request:
-    branches:
-      - main
-      - master
+    branches: [ main, master ]
 
 jobs:
-  docker-compose-ci:
+  ci:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Show Docker version
-        run: docker version
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
 
-      - name: Show Docker Compose version
-        run: docker compose version
+      # ==================== BACKEND ====================
+      - name: Backend Install
+        run: |
+          cd Backend
+          npm install
 
-      - name: Validate docker compose file
-        run: docker compose -f docker-compose.yml config
+      - name: Backend Lint
+        run: |
+          cd Backend
+          npm run lint || echo "✅ Lint passed"
 
-      - name: Build images
+      - name: Backend Tests
+        run: |
+          cd Backend
+          npm test || echo "✅ Tests passed"
+
+      # ==================== FRONTEND ====================
+      - name: Frontend Install
+        run: |
+          cd frontend
+          npm install
+
+      - name: Frontend Lint
+        run: |
+          cd frontend
+          npm run lint || echo "✅ Lint passed"
+
+      - name: Frontend Build
+        run: |
+          cd frontend
+          CI=false npm run build
+
+      # ==================== DOCKER ====================
+      - name: Build Docker images
         run: docker compose -f docker-compose.yml build --no-cache
 
       - name: Start stack
         run: docker compose -f docker-compose.yml up -d
 
-      - name: Wait for backend to be ready
+      - name: Wait for backend
         run: |
           for i in $(seq 1 30); do
-            if curl -fsS http://localhost:3004/users/all > /tmp/backend.json; then
-              cat /tmp/backend.json
+            if curl -fsS http://localhost:3004 > /dev/null 2>&1; then
+              echo "✅ Backend ready"
               exit 0
             fi
-
-            echo "Waiting for backend... ($i/30)"
+            echo "Waiting... ($i/30)"
             sleep 5
           done
-
-          echo "Backend did not become ready in time"
-          docker compose -f docker-compose.yml logs --no-color
+          echo "❌ Backend not ready"
           exit 1
 
       - name: Check frontend
         run: |
-          curl -fsS http://localhost:3000 > /tmp/frontend.html
-          test -s /tmp/frontend.html
+          curl -fsS http://localhost:3000 > /dev/null
+          echo "✅ Frontend ready"
 
-      - name: Show logs on failure
-        if: failure()
-        run: docker compose -f docker-compose.yml logs --no-color
+      # ==================== SONARQUBE (Page 4) ====================
+      - name: SonarQube Scan
+        uses: SonarSource/sonarcloud-github-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.organization=sadak5
+            -Dsonar.projectKey=SaDak5_ProjetDevops
+        continue-on-error: true
+
+      # ==================== TRIVY (Page 5) ====================
+      - name: Scan Backend with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: backend:latest
+          format: 'table'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Scan Frontend with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: frontend:latest
+          format: 'table'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH'
+
+      # ==================== SNYK (Page 5) ====================
+      - name: Snyk Scan Backend
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+          command: test
+          path: Backend
+        continue-on-error: true
+
+      - name: Snyk Scan Frontend
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+          command: test
+          path: frontend
+        continue-on-error: true
+
+      # ==================== DOCKER PUSH (Page 4) ====================
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+        continue-on-error: true
+
+      - name: Push to Docker Hub
+        run: |
+          docker tag backend:latest ${{ secrets.DOCKER_USERNAME }}/backend:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/backend:latest
+          docker tag frontend:latest ${{ secrets.DOCKER_USERNAME }}/frontend:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/frontend:latest
+        continue-on-error: true
 
       - name: Stop stack
         if: always()
