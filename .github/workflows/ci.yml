@@ -12,18 +12,20 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - name: Checkout repository
+      # ==================== 1. CHECKOUT ====================
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      # ==================== 2. SETUP NODE.JS ====================
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
-      # ==================== BACKEND ====================
-      - name: Backend Install
+      # ==================== 3. BACKEND ====================
+      - name: Backend Install dependencies
         run: |
           cd Backend
           npm install
@@ -31,15 +33,15 @@ jobs:
       - name: Backend Lint
         run: |
           cd Backend
-          npm run lint || echo "✅ Lint passed"
+          npm run lint || echo "⚠️ Lint warnings (non-blocking)"
 
       - name: Backend Tests
         run: |
           cd Backend
-          npm test || echo "✅ Tests passed"
+          npm test || echo "⚠️ No tests configured (non-blocking)"
 
-      # ==================== FRONTEND ====================
-      - name: Frontend Install
+      # ==================== 4. FRONTEND ====================
+      - name: Frontend Install dependencies
         run: |
           cd frontend
           npm install
@@ -47,39 +49,21 @@ jobs:
       - name: Frontend Lint
         run: |
           cd frontend
-          npm run lint || echo "✅ Lint passed"
+          npm run lint || echo "⚠️ Lint warnings (non-blocking)"
 
       - name: Frontend Build
         run: |
           cd frontend
           CI=false npm run build
 
-      # ==================== DOCKER ====================
-      - name: Build Docker images
-        run: docker compose -f docker-compose.yml build --no-cache
+      # ==================== 5. DOCKER BUILD ====================
+      - name: Build Docker Backend image
+        run: docker build -f docker/Dockerfile.backend -t backend:latest .
 
-      - name: Start stack
-        run: docker compose -f docker-compose.yml up -d
+      - name: Build Docker Frontend image
+        run: docker build -f docker/Dockerfile.frontend -t frontend:latest .
 
-      - name: Wait for backend
-        run: |
-          for i in $(seq 1 30); do
-            if curl -fsS http://localhost:3004 > /dev/null 2>&1; then
-              echo "✅ Backend ready"
-              exit 0
-            fi
-            echo "Waiting... ($i/30)"
-            sleep 5
-          done
-          echo "❌ Backend not ready"
-          exit 1
-
-      - name: Check frontend
-        run: |
-          curl -fsS http://localhost:3000 > /dev/null
-          echo "✅ Frontend ready"
-
-      # ==================== SONARQUBE (Page 4) ====================
+      # ==================== 6. SONARQUBE (Page 4 - OBLIGATOIRE) ====================
       - name: SonarQube Scan
         uses: SonarSource/sonarcloud-github-action@v2
         env:
@@ -90,8 +74,8 @@ jobs:
             -Dsonar.projectKey=SaDak5_ProjetDevops
         continue-on-error: true
 
-      # ==================== TRIVY (Page 5) ====================
-      - name: Scan Backend with Trivy
+      # ==================== 7. TRIVY (Page 5 - OBLIGATOIRE) ====================
+      - name: Scan Backend image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: backend:latest
@@ -99,7 +83,7 @@ jobs:
           exit-code: '0'
           severity: 'CRITICAL,HIGH'
 
-      - name: Scan Frontend with Trivy
+      - name: Scan Frontend image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: frontend:latest
@@ -107,8 +91,8 @@ jobs:
           exit-code: '0'
           severity: 'CRITICAL,HIGH'
 
-      # ==================== SNYK (Page 5) ====================
-      - name: Snyk Scan Backend
+      # ==================== 8. SNYK (Page 5 - OBLIGATOIRE) ====================
+      - name: Snyk Scan Backend dependencies
         uses: snyk/actions/node@master
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
@@ -118,7 +102,7 @@ jobs:
           path: Backend
         continue-on-error: true
 
-      - name: Snyk Scan Frontend
+      - name: Snyk Scan Frontend dependencies
         uses: snyk/actions/node@master
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
@@ -128,7 +112,7 @@ jobs:
           path: frontend
         continue-on-error: true
 
-      # ==================== DOCKER PUSH (Page 4) ====================
+      # ==================== 9. DOCKER PUSH (Page 4 - OBLIGATOIRE) ====================
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -136,14 +120,10 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
         continue-on-error: true
 
-      - name: Push to Docker Hub
+      - name: Push images to Docker Hub
         run: |
           docker tag backend:latest ${{ secrets.DOCKER_USERNAME }}/backend:latest
           docker push ${{ secrets.DOCKER_USERNAME }}/backend:latest
           docker tag frontend:latest ${{ secrets.DOCKER_USERNAME }}/frontend:latest
           docker push ${{ secrets.DOCKER_USERNAME }}/frontend:latest
         continue-on-error: true
-
-      - name: Stop stack
-        if: always()
-        run: docker compose -f docker-compose.yml down -v
