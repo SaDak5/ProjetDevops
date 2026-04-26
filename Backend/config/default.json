@@ -1,6 +1,7 @@
 {
-    "mongo_url": "mongodb://127.0.0.1:27017/couvoiturage",
+    
+    "mongo_url": "mongodb://localhost:27017/couvoiturage",
     "jwtSecret" : "jwtSecret",
     "tokenExpire" : "2592000"
 }
-    
+        

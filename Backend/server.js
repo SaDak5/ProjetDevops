@@ -40,12 +40,24 @@ app.use(
 );
 
 // Connexion à la base de données
-const mongo_url = config.get("mongo_url");
+const mongo_url = process.env.MONGO_URL || config.get("mongo_url");
 mongoose.set("strictQuery", true);
-mongoose
-  .connect(mongo_url)
-  .then(() => console.log("MongoDB connected..."))
-  .catch((err) => console.log(err));
+
+async function connectToMongoWithRetry() {
+  const retryDelayMs = 5000;
+
+  while (true) {
+    try {
+      await mongoose.connect(mongo_url);
+      console.log("MongoDB connected...");
+      return;
+    } catch (err) {
+      console.error("MongoDB connection failed:", err.message);
+      console.log(`Retrying MongoDB connection in ${retryDelayMs / 1000}s...`);
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+    }
+  }
+}
 
 // Associer les routes aux chemins API
 app.use("/users", users);
@@ -123,4 +135,8 @@ io.on("connection", (socket) => {
 
 // Démarrer le serveur
 const port = process.env.PORT || 3004;
-server.listen(port, () => console.log(`Server running on port ${port}`));
+
+connectToMongoWithRetry().then(() => {
+  server.listen(port, () => console.log(`Server running on port ${port}`));
+});
+
