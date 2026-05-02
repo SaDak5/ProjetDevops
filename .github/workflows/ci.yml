@@ -12,19 +12,17 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      # ==================== 1. CHECKOUT ====================
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # ==================== 2. SETUP NODE.JS ====================
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
-      # ==================== 3. BACKEND ====================
+      # BACKEND
       - name: Backend Install dependencies
         run: |
           cd Backend
@@ -40,7 +38,7 @@ jobs:
           cd Backend
           npm test || echo "⚠️ No tests configured (non-blocking)"
 
-      # ==================== 4. FRONTEND ====================
+      # FRONTEND
       - name: Frontend Install dependencies
         run: |
           cd frontend
@@ -56,14 +54,14 @@ jobs:
           cd frontend
           CI=false npm run build
 
-      # ==================== 5. DOCKER BUILD ====================
+      # DOCKER BUILD
       - name: Build Docker Backend image
         run: docker build -f docker/Dockerfile.backend -t backend:latest .
 
       - name: Build Docker Frontend image
         run: docker build -f docker/Dockerfile.frontend -t frontend:latest .
 
-      # ==================== 6. SONARQUBE (Page 4 - OBLIGATOIRE) ====================
+      # SONARQUBE
       - name: SonarQube Scan
         uses: SonarSource/sonarcloud-github-action@v2
         env:
@@ -74,7 +72,7 @@ jobs:
             -Dsonar.projectKey=SaDak5_ProjetDevops
         continue-on-error: true
 
-      # ==================== 7. TRIVY (Page 5 - OBLIGATOIRE) ====================
+      # TRIVY
       - name: Scan Backend image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
@@ -91,7 +89,7 @@ jobs:
           exit-code: '0'
           severity: 'CRITICAL,HIGH'
 
-      # ==================== 8. SNYK (Page 5 - OBLIGATOIRE) ====================
+      # SNYK
       - name: Snyk Scan Backend dependencies
         uses: snyk/actions/node@master
         env:
@@ -99,7 +97,6 @@ jobs:
         with:
           args: --severity-threshold=high
           command: test
-          path: Backend
         continue-on-error: true
 
       - name: Snyk Scan Frontend dependencies
@@ -109,10 +106,9 @@ jobs:
         with:
           args: --severity-threshold=high
           command: test
-          path: frontend
         continue-on-error: true
 
-      # ==================== 9. DOCKER PUSH (Page 4 - OBLIGATOIRE) ====================
+      # DOCKER PUSH
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
