@@ -14,3 +14,4 @@ Elle permet aux utilisateurs de s'inscrire, publier des trajets, réserver des p
 | CD (K8s + ArgoCD) | ⏳ À VENIR | Manifests Kubernetes et GitOps |
 | DevSecOps | ⏳ À VENIR | Trivy, Snyk, SonarQube |
 | Monitoring | ⏳ À VENIR | Prometheus + Grafana 
+# 
