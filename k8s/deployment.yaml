@@ -16,7 +16,7 @@ spec:
       containers:
       - name: backend
         image: sadokaziz/backend:latest
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         ports:
         - containerPort: 3004
 ---
@@ -38,6 +38,6 @@ spec:
       containers:
       - name: frontend
         image: sadokaziz/frontend:latest
-        imagePullPolicy: IfNotPresent  # ← AJOUTER CETTE LIGNE
+        imagePullPolicy: Always
         ports:
         - containerPort: 3000
